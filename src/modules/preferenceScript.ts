@@ -4,6 +4,10 @@ import {
   assignSpotlightShortcut,
   resolveShortcutConfig,
 } from "./spotlight/shortcuts";
+import {
+  parsePriorityConfig,
+  serializePriorityConfig,
+} from "./spotlight/collectionPriority";
 
 export async function registerPrefsScripts(_window: Window) {
   if (!addon.data.prefs) {
@@ -79,6 +83,15 @@ function syncPrefUI() {
     filterHintBarCheckbox.checked =
       val === undefined || val === null ? true : !!val;
   }
+  const prioritiesTextarea = doc.querySelector(
+    `#zotero-prefpane-${config.addonRef}-collection-priorities`,
+  ) as HTMLTextAreaElement | null;
+  if (prioritiesTextarea) {
+    const val = (getPref as any)("collectionPriorities") as string | null;
+    prioritiesTextarea.value = serializePriorityConfig(
+      parsePriorityConfig(typeof val === "string" ? val : null),
+    );
+  }
 }
 
 function bindPrefEvents() {
@@ -134,6 +147,30 @@ function bindPrefEvents() {
   ) as HTMLInputElement | null;
   filterHintBarCheckboxBind?.addEventListener("change", () => {
     (setPref as any)("showFilterHintBar", filterHintBarCheckboxBind.checked);
+  });
+  const prioritiesTextareaBind = doc.querySelector(
+    `#zotero-prefpane-${config.addonRef}-collection-priorities`,
+  ) as HTMLTextAreaElement | null;
+  const prioritiesStatus = doc.querySelector(
+    `#zotero-prefpane-${config.addonRef}-collection-priorities-status`,
+  );
+  prioritiesTextareaBind?.addEventListener("change", () => {
+    let valid = false;
+    try {
+      JSON.parse(prioritiesTextareaBind.value);
+      valid = true;
+    } catch (_) {
+      valid = false;
+    }
+    if (valid) {
+      // Canonicalize (drops malformed lines) and persist.
+      const canonical = serializePriorityConfig(
+        parsePriorityConfig(prioritiesTextareaBind.value),
+      );
+      prioritiesTextareaBind.value = canonical;
+      (setPref as any)("collectionPriorities", canonical);
+    }
+    updatePriorityStatus(doc, prioritiesStatus, valid);
   });
   const resetButton = doc.querySelector(
     `#zotero-prefpane-${config.addonRef}-reset-defaults`,
