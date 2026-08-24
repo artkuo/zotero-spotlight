@@ -16,6 +16,7 @@ import {
   resolvePriorityEntriesFromZotero,
   type ResolvedPriorityEntry,
 } from "./collectionPriority";
+import { scoreQuery } from "./matching";
 
 export type QuickOpenResult = ItemResult | AttachmentResult | AnnotationResult;
 
@@ -76,6 +77,9 @@ type IndexedEntry = {
   // IDs of the collections this item belongs to (annotations use their
   // parent item's memberships) for collection-priority ranking.
   collectionIDs: number[];
+  // Individual searchable fields for per-field matching; searchText is
+  // their concatenation, kept for loose mode.
+  searchFields: string[];
   // annotation-specific
   annotationColor?: string;
   annotationText?: string;
@@ -503,6 +507,13 @@ async function buildBaseIndex(): Promise<IndexedEntry[]> {
             searchText: normalize(
               `${title} ${subtitle} ${authors} ${tags.join(" ")} ${abstractSnippet}`,
             ),
+            searchFields: buildSearchFields(
+              title,
+              subtitle,
+              authors,
+              tags,
+              abstractSnippet,
+            ),
           });
         } else if (item.isNote && item.isNote()) {
           const title = getNoteTitle(item);
@@ -526,6 +537,13 @@ async function buildBaseIndex(): Promise<IndexedEntry[]> {
             collectionIDs: parent !== null ? getCollectionIDs(parent.id) : [],
             searchText: normalize(
               `${title} ${subtitle} ${authors} ${tags.join(" ")} ${abstractSnippet}`,
+            ),
+            searchFields: buildSearchFields(
+              title,
+              subtitle,
+              authors,
+              tags,
+              abstractSnippet,
             ),
           });
         } else if (item.isAttachment() && isSearchableAttachment(item)) {
@@ -552,6 +570,13 @@ async function buildBaseIndex(): Promise<IndexedEntry[]> {
             collectionIDs: parent !== null ? getCollectionIDs(parent.id) : [],
             searchText: normalize(
               `${title} ${subtitle} ${authors} ${tags.join(" ")} ${abstractSnippet}`,
+            ),
+            searchFields: buildSearchFields(
+              title,
+              subtitle,
+              authors,
+              tags,
+              abstractSnippet,
             ),
           });
         }
@@ -726,6 +751,12 @@ async function buildAnnotationIndex(): Promise<IndexedEntry[]> {
           searchText: normalize(
             `${annotationText} ${annotationComment} ${parentMeta.title} ${parentMeta.authors} ${pageLabel}`,
           ),
+          searchFields: [
+            normalize(annotationText),
+            normalize(annotationComment),
+            normalize(parentMeta.title),
+            normalize(parentMeta.authors),
+          ].filter(Boolean),
         });
       } catch (err) {
         ztoolkit.log("Spotlight skipped annotation", err);
@@ -850,6 +881,22 @@ function getAnnotationPageIndex(rawPosition?: string): number {
   } catch (_) {
     return 0;
   }
+}
+
+function buildSearchFields(
+  title: string,
+  subtitle: string,
+  authors: string,
+  tags: string[],
+  abstractSnippet: string,
+): string[] {
+  return [
+    normalize(title),
+    normalize(subtitle),
+    normalize(authors),
+    ...tags.map((tag) => normalize(tag)),
+    normalize(abstractSnippet),
+  ].filter(Boolean);
 }
 
 function getItemCollectionIDs(item: Zotero.Item | null): number[] {
@@ -1015,8 +1062,9 @@ function parsePdfContentQuery(rawQuery: string): string | null {
 }
 
 function getEntryScore(entry: IndexedEntry, query: ParsedQuery): number {
+  // Preserve the original behavior: no text query → neutral base score.
   const baseScore = query.textQuery
-    ? fuzzyScore(query.textQuery, entry.searchText)
+    ? scoreQuery(query.textQuery, entry.searchFields, entry.searchText, "field")
     : 10;
   if (baseScore <= 0) {
     return -1;
@@ -1194,47 +1242,4 @@ function shouldSearchAnnotations(query: ParsedQuery): boolean {
 
 function normalize(value: string): string {
   return value.toLowerCase().replace(/\s+/g, " ").trim();
-}
-
-function fuzzyScore(query: string, text: string): number {
-  const q = normalize(query);
-  const t = normalize(text);
-  if (!q || !t) {
-    return -1;
-  }
-  let score = 0;
-  let tIndex = 0;
-  let lastMatch = -1;
-  let consecutive = 0;
-  for (let i = 0; i < q.length; i += 1) {
-    const char = q[i];
-    let found = false;
-    while (tIndex < t.length) {
-      if (t[tIndex] === char) {
-        found = true;
-        break;
-      }
-      tIndex += 1;
-    }
-    if (!found) {
-      return -1;
-    }
-    if (tIndex === lastMatch + 1) {
-      consecutive += 1;
-      score += 5 + consecutive;
-    } else {
-      consecutive = 0;
-      score += 1;
-    }
-    if (tIndex === 0 || " /-_".includes(t[tIndex - 1])) {
-      score += 3;
-    }
-    lastMatch = tIndex;
-    tIndex += 1;
-  }
-  if (t.includes(q)) {
-    score += 8;
-  }
-  score += Math.max(0, 10 - (t.length - q.length));
-  return score;
 }
