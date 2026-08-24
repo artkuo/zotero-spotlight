@@ -10,6 +10,7 @@ import {
 import { getPref } from "../../utils/prefs";
 import { NORMALIZED_READING_QUEUE_TAG } from "./readingQueue";
 import {
+  getResultTypeBoost,
   getPriorityBoost,
   parsePriorityConfig,
   resolvePriorityEntriesFromZotero,
@@ -204,6 +205,10 @@ export class SearchService {
             priorityEntries,
           )
         : 0;
+      const resultTypeBoost = getResultTypeBoost(
+        entry.resultType,
+        priorityConfig,
+      );
 
       if (entry.kind === "annotation") {
         results.push({
@@ -217,7 +222,8 @@ export class SearchService {
             frequencyBoost +
             recencyBoost +
             libraryBoost +
-            collectionPriorityBoost,
+            collectionPriorityBoost +
+            resultTypeBoost,
           year: entry.year === null ? undefined : entry.year,
           libraryKind: entry.libraryKind,
           authors: entry.authors || undefined,
@@ -240,7 +246,8 @@ export class SearchService {
             frequencyBoost +
             recencyBoost +
             libraryBoost +
-            collectionPriorityBoost,
+            collectionPriorityBoost +
+            resultTypeBoost,
           year: entry.year === null ? undefined : entry.year,
           libraryKind: entry.libraryKind,
           authors: entry.authors || undefined,

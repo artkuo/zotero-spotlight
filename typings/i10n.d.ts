@@ -13,7 +13,6 @@ export type FluentMessageId =
   | 'menuitem-label'
   | 'menuitem-submenulabel'
   | 'menupopup-label'
-  | 'pref-priority-hint'
   | 'pref-priority-section'
   | 'pref-priority-status-invalid'
   | 'pref-priority-status-valid'

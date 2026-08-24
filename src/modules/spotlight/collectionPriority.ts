@@ -14,6 +14,20 @@
 export const LIBRARY_BOOST_STEP = 8;
 export const COLLECTION_BOOST_STEP = 4;
 
+export const PRIORITIZED_RESULT_TYPES = [
+  "item",
+  "note",
+  "pdf",
+  "epub",
+  "snapshot",
+  "annotation",
+] as const;
+
+export type PrioritizedResultType = (typeof PRIORITIZED_RESULT_TYPES)[number];
+
+/** Optional additive boosts per result type, e.g. `{ item: 8, pdf: 5 }`. */
+export type ResultTypeBoosts = Partial<Record<PrioritizedResultType, number>>;
+
 export type PriorityEntry =
   | { type: "library"; libraryID: number }
   | { type: "collection"; libraryID: number; key: string };
@@ -21,10 +35,11 @@ export type PriorityEntry =
 export interface PriorityConfig {
   order: PriorityEntry[];
   unlisted: "low";
+  resultTypes: ResultTypeBoosts;
 }
 
 export function emptyPriorityConfig(): PriorityConfig {
-  return { order: [], unlisted: "low" };
+  return { order: [], unlisted: "low", resultTypes: {} };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -84,7 +99,36 @@ export function parsePriorityConfig(
     seen.add(dedupeKey);
     order.push(entry);
   }
-  return { order, unlisted: "low" };
+  return {
+    order,
+    unlisted: "low",
+    resultTypes: parseResultTypeBoosts(parsed.resultTypes),
+  };
+}
+
+function parseResultTypeBoosts(raw: unknown): ResultTypeBoosts {
+  const resultTypes: ResultTypeBoosts = {};
+  if (!isRecord(raw)) {
+    return resultTypes;
+  }
+  for (const [key, value] of Object.entries(raw)) {
+    if (
+      (PRIORITIZED_RESULT_TYPES as readonly string[]).includes(key) &&
+      typeof value === "number" &&
+      Number.isFinite(value)
+    ) {
+      resultTypes[key as PrioritizedResultType] = value;
+    }
+  }
+  return resultTypes;
+}
+
+/** Additive boost for a result type; unknown types and missing keys → 0. */
+export function getResultTypeBoost(
+  resultType: string,
+  config: PriorityConfig,
+): number {
+  return config.resultTypes[resultType as PrioritizedResultType] ?? 0;
 }
 
 export function serializePriorityConfig(config: PriorityConfig): string {
@@ -236,5 +280,9 @@ export function buildPriorityTemplate(
       });
     }
   }
-  return serializePriorityConfig({ order, unlisted: "low" });
+  return serializePriorityConfig({
+    order,
+    unlisted: "low",
+    resultTypes: {},
+  });
 }

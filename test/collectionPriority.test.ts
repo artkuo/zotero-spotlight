@@ -2,38 +2,32 @@ import { assert } from "chai";
 import {
   buildPriorityTemplate,
   getPriorityBoost,
+  getResultTypeBoost,
   parsePriorityConfig,
   resolvePriorityEntries,
   serializePriorityConfig,
   type PriorityConfig,
 } from "../src/modules/spotlight/collectionPriority";
 
+const EMPTY_CONFIG = { order: [], unlisted: "low", resultTypes: {} };
+
 describe("collection priority config", function () {
   describe("parsePriorityConfig", function () {
     it("returns an empty config for null/undefined/empty input", function () {
-      assert.deepEqual(parsePriorityConfig(null), {
-        order: [],
-        unlisted: "low",
-      });
-      assert.deepEqual(parsePriorityConfig(undefined), {
-        order: [],
-        unlisted: "low",
-      });
-      assert.deepEqual(parsePriorityConfig(""), { order: [], unlisted: "low" });
+      assert.deepEqual(parsePriorityConfig(null), EMPTY_CONFIG);
+      assert.deepEqual(parsePriorityConfig(undefined), EMPTY_CONFIG);
+      assert.deepEqual(parsePriorityConfig(""), EMPTY_CONFIG);
     });
 
     it("returns an empty config for invalid JSON", function () {
-      assert.deepEqual(parsePriorityConfig("{not json"), {
-        order: [],
-        unlisted: "low",
-      });
+      assert.deepEqual(parsePriorityConfig("{not json"), EMPTY_CONFIG);
     });
 
     it("returns an empty config when order is missing", function () {
-      assert.deepEqual(parsePriorityConfig('{"unlisted": "low"}'), {
-        order: [],
-        unlisted: "low",
-      });
+      assert.deepEqual(
+        parsePriorityConfig('{"unlisted": "low"}'),
+        EMPTY_CONFIG,
+      );
     });
 
     it("parses valid library and collection entries", function () {
@@ -101,11 +95,43 @@ describe("collection priority config", function () {
           { type: "collection", libraryID: 3, key: "K9" },
         ],
         unlisted: "low",
+        resultTypes: { item: 8, pdf: 5 },
       } as PriorityConfig;
       const roundTripped = parsePriorityConfig(
         serializePriorityConfig(original),
       );
       assert.deepEqual(roundTripped, original);
+    });
+  });
+
+  describe("resultTypes boosts", function () {
+    const configJSON =
+      '{"order":[],"resultTypes":{"item":8,"pdf":5,"bogus":99,"note":"high"}}';
+
+    it("keeps valid types and drops unknown keys and non-numeric values", function () {
+      const config = parsePriorityConfig(configJSON);
+      assert.deepEqual(config.resultTypes, { item: 8, pdf: 5 });
+    });
+
+    it("boosts matching result types", function () {
+      const config = parsePriorityConfig(configJSON);
+      assert.equal(getResultTypeBoost("item", config), 8);
+      assert.equal(getResultTypeBoost("pdf", config), 5);
+    });
+
+    it("returns zero for missing or unknown types", function () {
+      const config = parsePriorityConfig(configJSON);
+      assert.equal(getResultTypeBoost("note", config), 0);
+      assert.equal(getResultTypeBoost("bogus", config), 0);
+      assert.equal(getResultTypeBoost("item", EMPTY_CONFIG), 0);
+    });
+
+    it("includes an empty resultTypes block in the template", function () {
+      const template = buildPriorityTemplate(
+        [{ libraryID: 1, name: "My Library" }],
+        [],
+      );
+      assert.deepEqual(JSON.parse(template).resultTypes, {});
     });
   });
 
