@@ -205,10 +205,6 @@ export class SearchService {
             priorityEntries,
           )
         : 0;
-      const resultTypeBoost = getResultTypeBoost(
-        entry.resultType,
-        priorityConfig,
-      );
 
       if (entry.kind === "annotation") {
         results.push({
@@ -222,8 +218,7 @@ export class SearchService {
             frequencyBoost +
             recencyBoost +
             libraryBoost +
-            collectionPriorityBoost +
-            resultTypeBoost,
+            collectionPriorityBoost,
           year: entry.year === null ? undefined : entry.year,
           libraryKind: entry.libraryKind,
           authors: entry.authors || undefined,
@@ -246,8 +241,7 @@ export class SearchService {
             frequencyBoost +
             recencyBoost +
             libraryBoost +
-            collectionPriorityBoost +
-            resultTypeBoost,
+            collectionPriorityBoost,
           year: entry.year === null ? undefined : entry.year,
           libraryKind: entry.libraryKind,
           authors: entry.authors || undefined,
@@ -263,9 +257,16 @@ export class SearchService {
       }
       return r.kind === "annotation" ? 1 : 0;
     };
+    // resultTypes weights act as strict tiers: types with a higher value
+    // always rank above ones with a lower value; match quality (score)
+    // only breaks ties within the same tier.
+    const typeTier = (r: QuickOpenResult) =>
+      getResultTypeBoost(r.resultType, priorityConfig);
     const sorted = results.sort((a, b) => {
       const kindDiff = kindOrder(a) - kindOrder(b);
       if (kindDiff !== 0) return kindDiff;
+      const tierDiff = typeTier(b) - typeTier(a);
+      if (tierDiff !== 0) return tierDiff;
       return b.score - a.score;
     });
 
