@@ -9,6 +9,12 @@ import {
 } from "./itemMetadata";
 import { getPref } from "../../utils/prefs";
 import { NORMALIZED_READING_QUEUE_TAG } from "./readingQueue";
+import {
+  getPriorityBoost,
+  parsePriorityConfig,
+  resolvePriorityEntriesFromZotero,
+  type ResolvedPriorityEntry,
+} from "./collectionPriority";
 
 export type QuickOpenResult = ItemResult | AttachmentResult | AnnotationResult;
 
@@ -66,6 +72,9 @@ type IndexedEntry = {
   libraryID: number;
   libraryKind: "user" | "group";
   searchText: string;
+  // IDs of the collections this item belongs to (annotations use their
+  // parent item's memberships) for collection-priority ranking.
+  collectionIDs: number[];
   // annotation-specific
   annotationColor?: string;
   annotationText?: string;
@@ -134,6 +143,14 @@ export class SearchService {
 
     const parsedQuery = parseStructuredQuery(query);
     const activeLibraryID = this.getActiveLibraryID(win);
+    const priorityConfig = parsePriorityConfig(
+      (getPref as any)("collectionPriorities") as string | null,
+    );
+    const priorityEntries: ResolvedPriorityEntry[] = hasPriorityConfig(
+      priorityConfig,
+    )
+      ? resolvePriorityEntriesFromZotero(priorityConfig)
+      : [];
     await this.ensureBaseIndex();
     const searchAnnotations = shouldSearchAnnotations(parsedQuery);
     if (searchAnnotations) {
@@ -180,6 +197,13 @@ export class SearchService {
       );
       const libraryBoost =
         activeLibraryID !== null && activeLibraryID === entry.libraryID ? 6 : 0;
+      const collectionPriorityBoost = priorityEntries.length
+        ? getPriorityBoost(
+            entry.libraryID,
+            entry.collectionIDs,
+            priorityEntries,
+          )
+        : 0;
 
       if (entry.kind === "annotation") {
         results.push({
@@ -188,7 +212,12 @@ export class SearchService {
           resultType: "annotation",
           title: entry.title,
           subtitle: entry.subtitle,
-          score: baseScore + frequencyBoost + recencyBoost + libraryBoost,
+          score:
+            baseScore +
+            frequencyBoost +
+            recencyBoost +
+            libraryBoost +
+            collectionPriorityBoost,
           year: entry.year === null ? undefined : entry.year,
           libraryKind: entry.libraryKind,
           authors: entry.authors || undefined,
@@ -206,7 +235,12 @@ export class SearchService {
           resultType: entry.resultType,
           title: entry.title,
           subtitle: entry.subtitle,
-          score: baseScore + frequencyBoost + recencyBoost + libraryBoost,
+          score:
+            baseScore +
+            frequencyBoost +
+            recencyBoost +
+            libraryBoost +
+            collectionPriorityBoost,
           year: entry.year === null ? undefined : entry.year,
           libraryKind: entry.libraryKind,
           authors: entry.authors || undefined,
@@ -404,6 +438,16 @@ async function buildBaseIndex(): Promise<IndexedEntry[]> {
   const libraries = Zotero.Libraries.getAll();
   const entries: IndexedEntry[] = [];
   const parentsWithAttachment = new Set<number>();
+  const collectionMemberships = new Map<number, number[]>();
+  const getCollectionIDs = (itemID: number): number[] => {
+    let ids = collectionMemberships.get(itemID);
+    if (!ids) {
+      const item = Zotero.Items.get(itemID) as Zotero.Item | null;
+      ids = getItemCollectionIDs(item);
+      collectionMemberships.set(itemID, ids);
+    }
+    return ids;
+  };
 
   for (const library of libraries) {
     const libraryKind =
@@ -447,6 +491,7 @@ async function buildBaseIndex(): Promise<IndexedEntry[]> {
             year: getItemYearNumber(item),
             libraryID: library.libraryID,
             libraryKind,
+            collectionIDs: getCollectionIDs(item.id),
             searchText: normalize(
               `${title} ${subtitle} ${authors} ${tags.join(" ")} ${abstractSnippet}`,
             ),
@@ -470,6 +515,7 @@ async function buildBaseIndex(): Promise<IndexedEntry[]> {
             year: getParentYearNumber(item),
             libraryID: library.libraryID,
             libraryKind,
+            collectionIDs: parent !== null ? getCollectionIDs(parent.id) : [],
             searchText: normalize(
               `${title} ${subtitle} ${authors} ${tags.join(" ")} ${abstractSnippet}`,
             ),
@@ -495,6 +541,7 @@ async function buildBaseIndex(): Promise<IndexedEntry[]> {
             year: getAttachmentYearNumber(item),
             libraryID: library.libraryID,
             libraryKind,
+            collectionIDs: parent !== null ? getCollectionIDs(parent.id) : [],
             searchText: normalize(
               `${title} ${subtitle} ${authors} ${tags.join(" ")} ${abstractSnippet}`,
             ),
@@ -532,6 +579,7 @@ async function buildAnnotationIndex(): Promise<IndexedEntry[]> {
     let textRows: Array<{ tid: number; xxt?: string }> = [];
     let keyRows: Array<{ iid: number; kkey?: string }> = [];
     let annoKeyRows: Array<{ iid: number; kkey?: string }> = [];
+    let colRows: Array<{ iid: number; cid: number }> = [];
 
     await (Zotero.DB as any).executeTransaction(async () => {
       annoRows =
@@ -559,6 +607,12 @@ async function buildAnnotationIndex(): Promise<IndexedEntry[]> {
         ((await (Zotero.DB as any).queryAsync(
           `SELECT itemID AS tid, text AS xxt FROM itemAnnotations WHERE text IS NOT NULL AND text != ''`,
         )) as typeof textRows) || [];
+      colRows =
+        ((await (Zotero.DB as any).queryAsync(
+          `SELECT itemID AS iid, collectionID AS cid FROM collectionItems WHERE itemID IN (${[
+            ...new Set(attRows.map((row) => row.ppid)),
+          ].join(",")})`,
+        )) as typeof colRows) || [];
     });
 
     if (!annoRows.length) {
@@ -580,6 +634,15 @@ async function buildAnnotationIndex(): Promise<IndexedEntry[]> {
     const attachmentParentMap = new Map<number, number>();
     for (const row of attRows) {
       attachmentParentMap.set(row.iid, row.ppid);
+    }
+    const parentCollectionMap = new Map<number, number[]>();
+    for (const row of colRows) {
+      const ids = parentCollectionMap.get(row.iid);
+      if (ids) {
+        ids.push(row.cid);
+      } else {
+        parentCollectionMap.set(row.iid, [row.cid]);
+      }
     }
 
     for (const row of annoRows) {
@@ -642,6 +705,7 @@ async function buildAnnotationIndex(): Promise<IndexedEntry[]> {
           libraryKind:
             libraryKinds.get(getItemLibraryID(attachmentItem, parentItem)) ||
             "user",
+          collectionIDs: parentCollectionMap.get(parentItemID) || [],
           annotationColor: row.col || "#ffd400",
           annotationText,
           annotationComment,
@@ -778,6 +842,24 @@ function getAnnotationPageIndex(rawPosition?: string): number {
   } catch (_) {
     return 0;
   }
+}
+
+function getItemCollectionIDs(item: Zotero.Item | null): number[] {
+  if (!item) {
+    return [];
+  }
+  try {
+    const collections = item.getCollections?.() as number[] | undefined;
+    return (collections || []).filter(
+      (id) => typeof id === "number" && Number.isFinite(id),
+    );
+  } catch (_) {
+    return [];
+  }
+}
+
+function hasPriorityConfig(config: { order: { type: string }[] }): boolean {
+  return config.order.some((entry) => entry.type === "library");
 }
 
 function getItemLibraryID(

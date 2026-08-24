@@ -153,6 +153,24 @@ function bindPrefEvents() {
   });
 }
 
+function updatePriorityStatus(
+  doc: Document,
+  statusEl: Element | null,
+  valid: boolean,
+) {
+  if (!statusEl) {
+    return;
+  }
+  const l10nID = valid
+    ? "pref-priority-status-valid"
+    : "pref-priority-status-invalid";
+  try {
+    (doc as any).l10n?.setAttributes?.(statusEl, l10nID);
+  } catch (_) {
+    statusEl.textContent = valid ? "Saved." : "Invalid JSON — not saved.";
+  }
+}
+
 function clampResultsLimit(value: number): number {
   if (Number.isNaN(value)) return 20;
   return Math.min(100, Math.max(5, value));
