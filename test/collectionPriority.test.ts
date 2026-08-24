@@ -1,6 +1,7 @@
 import { assert } from "chai";
 import {
   buildPriorityTemplate,
+  getMatchMode,
   getPriorityBoost,
   getResultTypeBoost,
   parsePriorityConfig,
@@ -8,8 +9,14 @@ import {
   serializePriorityConfig,
   type PriorityConfig,
 } from "../src/modules/spotlight/collectionPriority";
+import { scoreQuery } from "../src/modules/spotlight/matching";
 
-const EMPTY_CONFIG = { order: [], unlisted: "low", resultTypes: {} };
+const EMPTY_CONFIG = {
+  order: [],
+  unlisted: "low",
+  resultTypes: {},
+  matching: { mode: "field" },
+};
 
 describe("collection priority config", function () {
   describe("parsePriorityConfig", function () {
@@ -96,6 +103,7 @@ describe("collection priority config", function () {
         ],
         unlisted: "low",
         resultTypes: { item: 8, pdf: 5 },
+        matching: { mode: "loose" },
       } as PriorityConfig;
       const roundTripped = parsePriorityConfig(
         serializePriorityConfig(original),
@@ -132,6 +140,55 @@ describe("collection priority config", function () {
         [],
       );
       assert.deepEqual(JSON.parse(template).resultTypes, {});
+    });
+  });
+
+  describe("matching mode", function () {
+    it("defaults to field mode when missing or invalid", function () {
+      assert.equal(getMatchMode(parsePriorityConfig(null)), "field");
+      assert.equal(getMatchMode(parsePriorityConfig('{"order":[]}')), "field");
+      assert.equal(
+        getMatchMode(parsePriorityConfig('{"matching":{"mode":"bogus"}}')),
+        "field",
+      );
+    });
+
+    it("parses explicit loose and field modes", function () {
+      assert.equal(
+        getMatchMode(
+          parsePriorityConfig('{"order":[],"matching":{"mode":"loose"}}'),
+        ),
+        "loose",
+      );
+      assert.equal(
+        getMatchMode(
+          parsePriorityConfig('{"order":[],"matching":{"mode":"field"}}'),
+        ),
+        "field",
+      );
+    });
+  });
+
+  describe("scoreQuery", function () {
+    // 'donelan' traces across the concatenation (d: diSoRders, o: disOrdErs,
+    // n/e: priNcE, l/a/n: pLAn) but lives in no single field.
+    const fields = ["gait disorders", "prince plan", "1997"];
+    const looseText = "gait disorders prince plan 1997";
+
+    it("matches within a single field in field mode", function () {
+      assert.isAbove(scoreQuery("gait", fields, looseText, "field"), 0);
+      assert.isAbove(scoreQuery("prince", fields, looseText, "field"), 0);
+      // Subsequence within one field still works.
+      assert.isAbove(scoreQuery("gt dsrdrs", fields, looseText, "field"), 0);
+    });
+
+    it("rejects matches scattered across field boundaries in field mode", function () {
+      assert.equal(scoreQuery("donelan", fields, looseText, "field"), -1);
+      assert.isAbove(scoreQuery("donelan", fields, looseText, "loose"), 0);
+    });
+
+    it("returns -1 for empty queries", function () {
+      assert.equal(scoreQuery("   ", fields, looseText, "field"), -1);
     });
   });
 

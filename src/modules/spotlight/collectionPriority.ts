@@ -14,6 +14,10 @@
 export const LIBRARY_BOOST_STEP = 8;
 export const COLLECTION_BOOST_STEP = 4;
 
+import { DEFAULT_MATCH_MODE, type MatchMode } from "./matching";
+
+export const MATCH_MODES: readonly MatchMode[] = ["field", "loose"];
+
 export const PRIORITIZED_RESULT_TYPES = [
   "item",
   "note",
@@ -36,10 +40,16 @@ export interface PriorityConfig {
   order: PriorityEntry[];
   unlisted: "low";
   resultTypes: ResultTypeBoosts;
+  matching: { mode: MatchMode };
 }
 
 export function emptyPriorityConfig(): PriorityConfig {
-  return { order: [], unlisted: "low", resultTypes: {} };
+  return {
+    order: [],
+    unlisted: "low",
+    resultTypes: {},
+    matching: { mode: DEFAULT_MATCH_MODE },
+  };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -103,7 +113,20 @@ export function parsePriorityConfig(
     order,
     unlisted: "low",
     resultTypes: parseResultTypeBoosts(parsed.resultTypes),
+    matching: { mode: parseMatchMode(parsed.matching) },
   };
+}
+
+function parseMatchMode(raw: unknown): MatchMode {
+  if (isRecord(raw) && MATCH_MODES.includes(raw.mode as MatchMode)) {
+    return raw.mode as MatchMode;
+  }
+  return DEFAULT_MATCH_MODE;
+}
+
+/** The query-matching mode in effect for this config. */
+export function getMatchMode(config: PriorityConfig): MatchMode {
+  return config.matching?.mode ?? DEFAULT_MATCH_MODE;
 }
 
 function parseResultTypeBoosts(raw: unknown): ResultTypeBoosts {
@@ -284,5 +307,6 @@ export function buildPriorityTemplate(
     order,
     unlisted: "low",
     resultTypes: {},
+    matching: { mode: DEFAULT_MATCH_MODE },
   });
 }
