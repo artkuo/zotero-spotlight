@@ -27,6 +27,7 @@ export const PRIORITIZED_RESULT_TYPES = [
   "epub",
   "snapshot",
   "annotation",
+  "link",
 ] as const;
 
 export type PrioritizedResultType = (typeof PRIORITIZED_RESULT_TYPES)[number];

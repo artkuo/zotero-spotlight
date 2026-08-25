@@ -124,6 +124,14 @@ describe("collection priority config", function () {
       assert.deepEqual(config.resultTypes, { item: 8, pdf: 5 });
     });
 
+    it("accepts the link result type", function () {
+      const linkConfig = parsePriorityConfig(
+        '{"order":[],"resultTypes":{"link":2,"bogus":9}}',
+      );
+      assert.deepEqual(linkConfig.resultTypes, { link: 2 });
+      assert.equal(getResultTypeBoost("link", linkConfig), 2);
+    });
+
     it("boosts matching result types", function () {
       const config = parsePriorityConfig(configJSON);
       assert.equal(getResultTypeBoost("item", config), 8);

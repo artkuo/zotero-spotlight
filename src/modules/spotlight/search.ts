@@ -28,7 +28,7 @@ export type SearchRankingState = {
 
 export type ResultKind = "item" | "attachment" | "annotation";
 export type ResultType =
-  "item" | "note" | "pdf" | "epub" | "snapshot" | "annotation";
+  "item" | "note" | "pdf" | "epub" | "snapshot" | "annotation" | "link";
 
 export interface BaseResult {
   id: number;
@@ -581,6 +581,32 @@ async function buildBaseIndex(): Promise<IndexedEntry[]> {
               abstractSnippet,
             ),
           });
+        } else if (isStandaloneLinkedUrl(item)) {
+          // Top-level linked web URLs: searchable on their own metadata
+          // only, in their own 'link' category.
+          const title = getAttachmentTitle(item);
+          const tags = getItemTags(item);
+          const url = safeGetUrl(item);
+          entries.push({
+            id: item.id,
+            kind: "attachment",
+            resultType: "link",
+            title,
+            subtitle: "Link",
+            authors: "",
+            tags,
+            abstractSnippet: "",
+            year: null,
+            libraryID: library.libraryID,
+            libraryKind,
+            collectionIDs: [],
+            searchText: normalize(`${title} ${url} ${tags.join(" ")}`),
+            searchFields: [
+              normalize(title),
+              normalize(url),
+              ...tags.map((tag) => normalize(tag)),
+            ].filter(Boolean),
+          });
         }
       } catch (error) {
         ztoolkit.log("Spotlight skipped item during index build", error);
@@ -901,6 +927,32 @@ function buildSearchFields(
   ].filter(Boolean);
 }
 
+/** Top-level linked web URL (a pointer, not stored content, no parent). */
+function isStandaloneLinkedUrl(item: Zotero.Item): boolean {
+  if (!item.isAttachment() || getParentItem(item)) {
+    return false;
+  }
+  if (typeof item.isAnnotation === "function" && item.isAnnotation()) {
+    return false;
+  }
+  const candidate = item as any;
+  if (
+    typeof candidate.isFileAttachment === "function" &&
+    candidate.isFileAttachment()
+  ) {
+    return false;
+  }
+  return true;
+}
+
+function safeGetUrl(item: Zotero.Item): string {
+  try {
+    return String(item.getField?.("url") || "");
+  } catch (_) {
+    return "";
+  }
+}
+
 function getItemCollectionIDs(item: Zotero.Item | null): number[] {
   if (!item) {
     return [];
@@ -1168,7 +1220,8 @@ function parseTypeFilter(rawValue: string): ResultType[] {
       entry === "snapshot" ||
       entry === "note" ||
       entry === "item" ||
-      entry === "annotation"
+      entry === "annotation" ||
+      entry === "link"
     ) {
       parsed.push(entry as ResultType);
     }
