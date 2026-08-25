@@ -10,11 +10,11 @@ import {
 import { getPref } from "../../utils/prefs";
 import { NORMALIZED_READING_QUEUE_TAG } from "./readingQueue";
 import {
-  getResultTypeBoost,
-  getPriorityBoost,
+  includesUnlistedAsLow,
+  LIBRARY_BOOST_STEP,
   parsePriorityConfig,
-  resolvePriorityEntriesFromZotero,
-  type ResolvedPriorityEntry,
+  restrictsToSelectedLibraries,
+  getResultTypeRank,
 } from "./collectionPriority";
 
 export type QuickOpenResult = ItemResult | AttachmentResult | AnnotationResult;
@@ -73,9 +73,6 @@ type IndexedEntry = {
   libraryID: number;
   libraryKind: "user" | "group";
   searchText: string;
-  // IDs of the collections this item belongs to (annotations use their
-  // parent item's memberships) for collection-priority ranking.
-  collectionIDs: number[];
   // annotation-specific
   annotationColor?: string;
   annotationText?: string;
@@ -147,11 +144,9 @@ export class SearchService {
     const priorityConfig = parsePriorityConfig(
       (getPref as any)("collectionPriorities") as string | null,
     );
-    const priorityEntries: ResolvedPriorityEntry[] = hasPriorityConfig(
-      priorityConfig,
-    )
-      ? resolvePriorityEntriesFromZotero(priorityConfig)
-      : [];
+    const restrictToSelected = restrictsToSelectedLibraries(priorityConfig);
+    const demoteUnlisted = includesUnlistedAsLow(priorityConfig);
+    const selectedLibraries = new Set(priorityConfig.libraries);
     await this.ensureBaseIndex();
     const searchAnnotations = shouldSearchAnnotations(parsedQuery);
     if (searchAnnotations) {
@@ -198,13 +193,15 @@ export class SearchService {
       );
       const libraryBoost =
         activeLibraryID !== null && activeLibraryID === entry.libraryID ? 6 : 0;
-      const collectionPriorityBoost = priorityEntries.length
-        ? getPriorityBoost(
-            entry.libraryID,
-            entry.collectionIDs,
-            priorityEntries,
-          )
-        : 0;
+      if (!selectedLibraries.has(entry.libraryID) && restrictToSelected) {
+        continue;
+      }
+      // Listed libraries rank above unlisted ones when the user chose
+      // to keep unlisted libraries searchable ("low" mode).
+      const librarySelectionBoost =
+        demoteUnlisted && selectedLibraries.has(entry.libraryID)
+          ? LIBRARY_BOOST_STEP
+          : 0;
 
       if (entry.kind === "annotation") {
         results.push({
@@ -218,7 +215,7 @@ export class SearchService {
             frequencyBoost +
             recencyBoost +
             libraryBoost +
-            collectionPriorityBoost,
+            librarySelectionBoost,
           year: entry.year === null ? undefined : entry.year,
           libraryKind: entry.libraryKind,
           authors: entry.authors || undefined,
@@ -241,7 +238,7 @@ export class SearchService {
             frequencyBoost +
             recencyBoost +
             libraryBoost +
-            collectionPriorityBoost,
+            librarySelectionBoost,
           year: entry.year === null ? undefined : entry.year,
           libraryKind: entry.libraryKind,
           authors: entry.authors || undefined,
@@ -257,16 +254,16 @@ export class SearchService {
       }
       return r.kind === "annotation" ? 1 : 0;
     };
-    // resultTypes weights act as strict tiers: types with a higher value
-    // always rank above ones with a lower value; match quality (score)
-    // only breaks ties within the same tier.
-    const typeTier = (r: QuickOpenResult) =>
-      getResultTypeBoost(r.resultType, priorityConfig);
+    // resultTypes act as strict tiers in ranked order (1 = highest).
+    // Unranked types fall back to match quality, below all ranked types.
+    const typeRank = (r: QuickOpenResult) =>
+      getResultTypeRank(r.resultType, priorityConfig) ??
+      Number.POSITIVE_INFINITY;
     const sorted = results.sort((a, b) => {
       const kindDiff = kindOrder(a) - kindOrder(b);
       if (kindDiff !== 0) return kindDiff;
-      const tierDiff = typeTier(b) - typeTier(a);
-      if (tierDiff !== 0) return tierDiff;
+      const rankDiff = typeRank(a) - typeRank(b);
+      if (rankDiff !== 0) return rankDiff;
       return b.score - a.score;
     });
 
@@ -370,6 +367,14 @@ export class SearchService {
       return [];
     }
 
+    // Default scoping applies to PDF text search as well; :col keeps
+    // full authority over collections elsewhere.
+    const priorityConfig = parsePriorityConfig(
+      (getPref as any)("collectionPriorities") as string | null,
+    );
+    const selectedLibraries = new Set(priorityConfig.libraries);
+    const restrictToSelected = restrictsToSelectedLibraries(priorityConfig);
+
     const seenAttachmentIDs = new Set<number>();
     const results: AttachmentResult[] = [];
     const collectionLibraryID =
@@ -381,7 +386,11 @@ export class SearchService {
         ? Zotero.Libraries.getAll().filter(
             (library) => library.libraryID === collectionLibraryID,
           )
-        : Zotero.Libraries.getAll();
+        : restrictToSelected
+          ? Zotero.Libraries.getAll().filter((library) =>
+              selectedLibraries.has(library.libraryID),
+            )
+          : Zotero.Libraries.getAll();
 
     for (const library of libraries) {
       try {
@@ -446,16 +455,6 @@ async function buildBaseIndex(): Promise<IndexedEntry[]> {
   const libraries = Zotero.Libraries.getAll();
   const entries: IndexedEntry[] = [];
   const parentsWithAttachment = new Set<number>();
-  const collectionMemberships = new Map<number, number[]>();
-  const getCollectionIDs = (itemID: number): number[] => {
-    let ids = collectionMemberships.get(itemID);
-    if (!ids) {
-      const item = Zotero.Items.get(itemID) as Zotero.Item | null;
-      ids = getItemCollectionIDs(item);
-      collectionMemberships.set(itemID, ids);
-    }
-    return ids;
-  };
 
   for (const library of libraries) {
     const libraryKind =
@@ -499,7 +498,6 @@ async function buildBaseIndex(): Promise<IndexedEntry[]> {
             year: getItemYearNumber(item),
             libraryID: library.libraryID,
             libraryKind,
-            collectionIDs: getCollectionIDs(item.id),
             searchText: normalize(
               `${title} ${subtitle} ${authors} ${tags.join(" ")} ${abstractSnippet}`,
             ),
@@ -523,7 +521,6 @@ async function buildBaseIndex(): Promise<IndexedEntry[]> {
             year: getParentYearNumber(item),
             libraryID: library.libraryID,
             libraryKind,
-            collectionIDs: parent !== null ? getCollectionIDs(parent.id) : [],
             searchText: normalize(
               `${title} ${subtitle} ${authors} ${tags.join(" ")} ${abstractSnippet}`,
             ),
@@ -549,7 +546,6 @@ async function buildBaseIndex(): Promise<IndexedEntry[]> {
             year: getAttachmentYearNumber(item),
             libraryID: library.libraryID,
             libraryKind,
-            collectionIDs: parent !== null ? getCollectionIDs(parent.id) : [],
             searchText: normalize(
               `${title} ${subtitle} ${authors} ${tags.join(" ")} ${abstractSnippet}`,
             ),
@@ -587,7 +583,6 @@ async function buildAnnotationIndex(): Promise<IndexedEntry[]> {
     let textRows: Array<{ tid: number; xxt?: string }> = [];
     let keyRows: Array<{ iid: number; kkey?: string }> = [];
     let annoKeyRows: Array<{ iid: number; kkey?: string }> = [];
-    let colRows: Array<{ iid: number; cid: number }> = [];
 
     await (Zotero.DB as any).executeTransaction(async () => {
       annoRows =
@@ -615,12 +610,6 @@ async function buildAnnotationIndex(): Promise<IndexedEntry[]> {
         ((await (Zotero.DB as any).queryAsync(
           `SELECT itemID AS tid, text AS xxt FROM itemAnnotations WHERE text IS NOT NULL AND text != ''`,
         )) as typeof textRows) || [];
-      colRows =
-        ((await (Zotero.DB as any).queryAsync(
-          `SELECT itemID AS iid, collectionID AS cid FROM collectionItems WHERE itemID IN (${[
-            ...new Set(attRows.map((row) => row.ppid)),
-          ].join(",")})`,
-        )) as typeof colRows) || [];
     });
 
     if (!annoRows.length) {
@@ -642,15 +631,6 @@ async function buildAnnotationIndex(): Promise<IndexedEntry[]> {
     const attachmentParentMap = new Map<number, number>();
     for (const row of attRows) {
       attachmentParentMap.set(row.iid, row.ppid);
-    }
-    const parentCollectionMap = new Map<number, number[]>();
-    for (const row of colRows) {
-      const ids = parentCollectionMap.get(row.iid);
-      if (ids) {
-        ids.push(row.cid);
-      } else {
-        parentCollectionMap.set(row.iid, [row.cid]);
-      }
     }
 
     for (const row of annoRows) {
@@ -713,7 +693,6 @@ async function buildAnnotationIndex(): Promise<IndexedEntry[]> {
           libraryKind:
             libraryKinds.get(getItemLibraryID(attachmentItem, parentItem)) ||
             "user",
-          collectionIDs: parentCollectionMap.get(parentItemID) || [],
           annotationColor: row.col || "#ffd400",
           annotationText,
           annotationComment,
@@ -850,24 +829,6 @@ function getAnnotationPageIndex(rawPosition?: string): number {
   } catch (_) {
     return 0;
   }
-}
-
-function getItemCollectionIDs(item: Zotero.Item | null): number[] {
-  if (!item) {
-    return [];
-  }
-  try {
-    const collections = item.getCollections?.() as number[] | undefined;
-    return (collections || []).filter(
-      (id) => typeof id === "number" && Number.isFinite(id),
-    );
-  } catch (_) {
-    return [];
-  }
-}
-
-function hasPriorityConfig(config: { order: { type: string }[] }): boolean {
-  return config.order.some((entry) => entry.type === "library");
 }
 
 function getItemLibraryID(

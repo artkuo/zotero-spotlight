@@ -1,18 +1,23 @@
 /**
- * Collection priority configuration.
+ * Library selection configuration.
  *
- * The configuration is stored as a JSON string in a single pref
- * (`collectionPriorities`) and is the single source of truth for both
- * search ranking and any future GUI. All reads/writes go through this
- * module so the data model can evolve without touching consumers.
+ * Stored as a JSON string in a single pref (`collectionPriorities`) and
+ * is the single source of truth for both default search scoping and any
+ * GUI. All reads/writes go through this module so the data model can
+ * evolve without touching consumers.
  *
- * Model: one ranked list ("order") with two node types. Libraries are
- * ranked first-class; collections add refinement within their library.
- * Hierarchy is a presentation concern — the flat order is authoritative.
+ * Model:
+ * - `libraries`: which libraries are searched by default (selection,
+ *   not ranking — order is irrelevant).
+ * - `includeUnlisted`: false (default) excludes unlisted libraries from
+ *   default results entirely; true keeps them searchable but ranked
+ *   below listed ones.
+ * - `resultTypes`: strict tiers as a ranked order where 1 is the
+ *   highest priority. Types without a rank fall back to match quality,
+ *   below all ranked types.
  */
 
 export const LIBRARY_BOOST_STEP = 8;
-export const COLLECTION_BOOST_STEP = 4;
 
 export const PRIORITIZED_RESULT_TYPES = [
   "item",
@@ -21,46 +26,26 @@ export const PRIORITIZED_RESULT_TYPES = [
   "epub",
   "snapshot",
   "annotation",
+  "link",
 ] as const;
 
 export type PrioritizedResultType = (typeof PRIORITIZED_RESULT_TYPES)[number];
 
-/** Optional additive boosts per result type, e.g. `{ item: 8, pdf: 5 }`. */
-export type ResultTypeBoosts = Partial<Record<PrioritizedResultType, number>>;
-
-export type PriorityEntry =
-  | { type: "library"; libraryID: number }
-  | { type: "collection"; libraryID: number; key: string };
+/** Ranked order per result type; 1 is the highest priority. */
+export type ResultTypeRanks = Partial<Record<PrioritizedResultType, number>>;
 
 export interface PriorityConfig {
-  order: PriorityEntry[];
-  unlisted: "low";
-  resultTypes: ResultTypeBoosts;
+  libraries: number[];
+  includeUnlisted: boolean;
+  resultTypes: ResultTypeRanks;
 }
 
 export function emptyPriorityConfig(): PriorityConfig {
-  return { order: [], unlisted: "low", resultTypes: {} };
+  return { libraries: [], includeUnlisted: false, resultTypes: {} };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
-}
-
-function parseEntry(raw: unknown): PriorityEntry | null {
-  if (!isRecord(raw)) {
-    return null;
-  }
-  const libraryID = raw.libraryID;
-  if (typeof libraryID !== "number" || !Number.isFinite(libraryID)) {
-    return null;
-  }
-  if (raw.type === "library") {
-    return { type: "library", libraryID };
-  }
-  if (raw.type === "collection" && typeof raw.key === "string" && raw.key) {
-    return { type: "collection", libraryID, key: raw.key };
-  }
-  return null;
 }
 
 /**
@@ -79,35 +64,33 @@ export function parsePriorityConfig(
   } catch (_) {
     return emptyPriorityConfig();
   }
-  if (!isRecord(parsed) || !Array.isArray(parsed.order)) {
+  if (!isRecord(parsed)) {
     return emptyPriorityConfig();
   }
-  const order: PriorityEntry[] = [];
-  const seen = new Set<string>();
-  for (const rawEntry of parsed.order) {
-    const entry = parseEntry(rawEntry);
-    if (!entry) {
-      continue;
+
+  const libraries: number[] = [];
+  const seen = new Set<number>();
+  const rawLibraries = Array.isArray(parsed.libraries) ? parsed.libraries : [];
+  for (const entry of rawLibraries) {
+    if (
+      typeof entry === "number" &&
+      Number.isFinite(entry) &&
+      !seen.has(entry)
+    ) {
+      seen.add(entry);
+      libraries.push(entry);
     }
-    const dedupeKey =
-      entry.type === "library"
-        ? `L${entry.libraryID}`
-        : `C${entry.libraryID}:${entry.key}`;
-    if (seen.has(dedupeKey)) {
-      continue;
-    }
-    seen.add(dedupeKey);
-    order.push(entry);
   }
+
   return {
-    order,
-    unlisted: "low",
-    resultTypes: parseResultTypeBoosts(parsed.resultTypes),
+    libraries,
+    includeUnlisted: parsed.includeUnlisted === true,
+    resultTypes: parseResultTypeRanks(parsed.resultTypes),
   };
 }
 
-function parseResultTypeBoosts(raw: unknown): ResultTypeBoosts {
-  const resultTypes: ResultTypeBoosts = {};
+function parseResultTypeRanks(raw: unknown): ResultTypeRanks {
+  const resultTypes: ResultTypeRanks = {};
   if (!isRecord(raw)) {
     return resultTypes;
   }
@@ -115,174 +98,59 @@ function parseResultTypeBoosts(raw: unknown): ResultTypeBoosts {
     if (
       (PRIORITIZED_RESULT_TYPES as readonly string[]).includes(key) &&
       typeof value === "number" &&
-      Number.isFinite(value)
+      Number.isFinite(value) &&
+      value >= 1
     ) {
-      resultTypes[key as PrioritizedResultType] = value;
+      resultTypes[key as PrioritizedResultType] = Math.round(value);
     }
   }
   return resultTypes;
-}
-
-/** Additive boost for a result type; unknown types and missing keys → 0. */
-export function getResultTypeBoost(
-  resultType: string,
-  config: PriorityConfig,
-): number {
-  return config.resultTypes[resultType as PrioritizedResultType] ?? 0;
 }
 
 export function serializePriorityConfig(config: PriorityConfig): string {
   return JSON.stringify(config, null, 2);
 }
 
-/**
- * Pure scoring helper used by SearchService. Boosts are additive:
- *
- * - Listed libraries get `(listedCount - rank) * LIBRARY_BOOST_STEP`.
- *   First-listed gets the largest boost; unlisted libraries get 0.
- * - Within a library, listed collections get
- *   `(listedCountInLibrary - rank) * COLLECTION_BOOST_STEP`. An item in
- *   multiple prioritized collections takes the best (largest) boost.
- */
-export function getPriorityBoost(
-  libraryID: number | null | undefined,
-  collectionIDs: readonly number[] | undefined,
-  entries: readonly ResolvedPriorityEntry[],
-): number {
-  let boost = 0;
-
-  const libraries = entries.filter((entry) => entry.type === "library");
-  const libraryRank = libraries.findIndex(
-    (entry) => entry.libraryID === libraryID,
-  );
-  if (libraryRank >= 0) {
-    boost += (libraries.length - libraryRank) * LIBRARY_BOOST_STEP;
-  }
-
-  if (collectionIDs?.length) {
-    const collectionSet = new Set(collectionIDs);
-    const collectionsInLibrary = entries.filter(
-      (entry) => entry.type === "collection" && entry.libraryID === libraryID,
-    );
-    // Best (highest) matching rank wins for multi-collection items.
-    for (let rank = 0; rank < collectionsInLibrary.length; rank += 1) {
-      const entry = collectionsInLibrary[rank];
-      if (
-        entry.type === "collection" &&
-        collectionSet.has(entry.collectionID)
-      ) {
-        boost += (collectionsInLibrary.length - rank) * COLLECTION_BOOST_STEP;
-        break;
-      }
-    }
-  }
-
-  return boost;
+/** True when default results should be restricted to `libraries`. */
+export function restrictsToSelectedLibraries(config: PriorityConfig): boolean {
+  // An empty selection means "no restriction" so a fresh install or an
+  // accidentally emptied checklist never hides the whole library.
+  return !config.includeUnlisted && config.libraries.length > 0;
 }
 
-/** Config entries resolved against live Zotero state: keys become IDs and
- * stale entries (deleted collections/libraries) are dropped. */
-export type ResolvedPriorityEntry =
-  | { type: "library"; libraryID: number }
-  | { type: "collection"; libraryID: number; collectionID: number };
-
-/**
- * Resolve key-based config entries to numeric collection IDs via a lookup
- * callback, dropping entries that cannot be resolved. Pure aside from the
- * callback, so it is unit-testable.
- */
-export function resolvePriorityEntries(
-  config: PriorityConfig,
-  lookupCollectionID: (libraryID: number, key: string) => number | null,
-): ResolvedPriorityEntry[] {
-  const cache = new Map<string, number | null>();
-  const resolved: ResolvedPriorityEntry[] = [];
-  for (const entry of config.order) {
-    if (entry.type === "library") {
-      resolved.push({ type: "library", libraryID: entry.libraryID });
-      continue;
-    }
-    const cacheKey = `${entry.libraryID}:${entry.key}`;
-    let collectionID = cache.get(cacheKey);
-    if (collectionID === undefined) {
-      collectionID = lookupCollectionID(entry.libraryID, entry.key);
-      cache.set(cacheKey, collectionID);
-    }
-    if (collectionID !== null) {
-      resolved.push({
-        type: "collection",
-        libraryID: entry.libraryID,
-        collectionID,
-      });
-    }
-  }
-  return resolved;
+/** True when unlisted libraries should be searchable but demoted. */
+export function includesUnlistedAsLow(config: PriorityConfig): boolean {
+  return config.includeUnlisted && config.libraries.length > 0;
 }
 
-/** Resolve using the running Zotero instance. */
-export function resolvePriorityEntriesFromZotero(
+/**
+ * Rank of a result type in the strict-tier order; 1 is highest.
+ * Returns undefined for unranked types, which fall back to match
+ * quality below every ranked type.
+ */
+export function getResultTypeRank(
+  type: string,
   config: PriorityConfig,
-): ResolvedPriorityEntry[] {
-  const byLibrary = new Map<number, Map<string, number>>();
-  return resolvePriorityEntries(config, (libraryID, key) => {
-    let keyMap = byLibrary.get(libraryID);
-    if (!keyMap) {
-      keyMap = new Map();
-      try {
-        for (const collection of Zotero.Collections.getByLibrary(
-          libraryID,
-          true,
-        ) as Zotero.Collection[]) {
-          keyMap.set(collection.key, collection.id);
-        }
-      } catch (_) {
-        // Library may no longer exist.
-      }
-      byLibrary.set(libraryID, keyMap);
-    }
-    return keyMap.get(key) ?? null;
+): number | undefined {
+  return config.resultTypes[type as PrioritizedResultType];
+}
+
+/**
+ * Build the clipboard/prefs-editor template from live Zotero state.
+ * Extra fields (`name`) are ignored by parsePriorityConfig and exist
+ * purely to make hand-editing feasible.
+ */
+export function buildPriorityTemplate(
+  libraries: CollectionTemplateInfo[],
+): string {
+  return serializePriorityConfig({
+    libraries: libraries.map((library) => library.libraryID),
+    includeUnlisted: false,
+    resultTypes: {},
   });
 }
 
 export interface CollectionTemplateInfo {
   libraryID: number;
-  name: string;
-  key?: string;
-  path?: string[];
-}
-
-/**
- * Build the clipboard/prefs-editor template from live Zotero state.
- * Extra fields (`name`, `path`) are ignored by parsePriorityConfig and
- * exist purely to make hand-editing feasible.
- */
-export function buildPriorityTemplate(
-  libraries: CollectionTemplateInfo[],
-  collections: CollectionTemplateInfo[],
-): string {
-  type TemplateEntry = PriorityEntry & Record<string, unknown>;
-  const order: TemplateEntry[] = [];
-  for (const library of libraries) {
-    order.push({
-      type: "library",
-      libraryID: library.libraryID,
-      name: library.name,
-    });
-    const children = collections.filter(
-      (entry) => entry.libraryID === library.libraryID && !!entry.key,
-    );
-    for (const collection of children) {
-      order.push({
-        type: "collection",
-        libraryID: collection.libraryID,
-        key: collection.key as string,
-        name: [...(collection.path || []), collection.name].join(" › "),
-      });
-    }
-  }
-  return serializePriorityConfig({
-    order,
-    unlisted: "low",
-    resultTypes: {},
-  });
+  name?: string;
 }

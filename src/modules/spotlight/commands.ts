@@ -666,20 +666,9 @@ export class CommandRegistry {
               libraryID: library.libraryID,
               name: library.name || "Library",
             });
-            for (const collection of Zotero.Collections.getByLibrary(
-              library.libraryID,
-              true,
-            )) {
-              collections.push({
-                libraryID: collection.libraryID,
-                key: collection.key || "",
-                name: collection.name || "Untitled Collection",
-                path: getAncestorNames(collection),
-              });
-            }
           }
           Zotero.Utilities.Internal.copyTextToClipboard(
-            buildPriorityTemplate(libraries, collections),
+            buildPriorityTemplate(libraries),
           );
         },
       },
