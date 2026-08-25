@@ -10,14 +10,14 @@ import {
 import { getPref } from "../../utils/prefs";
 import { NORMALIZED_READING_QUEUE_TAG } from "./readingQueue";
 import {
-  getMatchMode,
+  getMatchOptions,
   getResultTypeBoost,
   getPriorityBoost,
   parsePriorityConfig,
   resolvePriorityEntriesFromZotero,
   type ResolvedPriorityEntry,
 } from "./collectionPriority";
-import { scoreQuery, type MatchMode } from "./matching";
+import { scoreQuery, type MatchOptions } from "./matching";
 
 export type QuickOpenResult = ItemResult | AttachmentResult | AnnotationResult;
 
@@ -157,7 +157,7 @@ export class SearchService {
     )
       ? resolvePriorityEntriesFromZotero(priorityConfig)
       : [];
-    const matchMode = getMatchMode(priorityConfig);
+    const matchOptions = getMatchOptions(priorityConfig);
     await this.ensureBaseIndex();
     const searchAnnotations = shouldSearchAnnotations(parsedQuery);
     if (searchAnnotations) {
@@ -193,7 +193,7 @@ export class SearchService {
           entry.kind === "annotation" ? entry.attachmentID : entry.id;
         if (!checkID || !collectionItemIDs.has(checkID)) continue;
       }
-      const baseScore = getEntryScore(entry, parsedQuery, matchMode);
+      const baseScore = getEntryScore(entry, parsedQuery, matchOptions);
       if (baseScore <= 0) {
         continue;
       }
@@ -1066,7 +1066,7 @@ function parsePdfContentQuery(rawQuery: string): string | null {
 function getEntryScore(
   entry: IndexedEntry,
   query: ParsedQuery,
-  matchMode: MatchMode,
+  matchOptions: MatchOptions,
 ): number {
   // Preserve the original behavior: no text query → neutral base score.
   const baseScore = query.textQuery
@@ -1074,7 +1074,7 @@ function getEntryScore(
         query.textQuery,
         entry.searchFields,
         entry.searchText,
-        matchMode,
+        matchOptions,
       )
     : 10;
   if (baseScore <= 0) {

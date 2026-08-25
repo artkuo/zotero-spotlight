@@ -14,9 +14,11 @@
 export const LIBRARY_BOOST_STEP = 8;
 export const COLLECTION_BOOST_STEP = 4;
 
-import { DEFAULT_MATCH_MODE, type MatchMode } from "./matching";
-
-export const MATCH_MODES: readonly MatchMode[] = ["field", "loose"];
+import {
+  DEFAULT_MATCH_OPTIONS,
+  type MatchOptions,
+  MATCH_MODES,
+} from "./matching";
 
 export const PRIORITIZED_RESULT_TYPES = [
   "item",
@@ -40,7 +42,7 @@ export interface PriorityConfig {
   order: PriorityEntry[];
   unlisted: "low";
   resultTypes: ResultTypeBoosts;
-  matching: { mode: MatchMode };
+  matching: MatchOptions;
 }
 
 export function emptyPriorityConfig(): PriorityConfig {
@@ -48,7 +50,7 @@ export function emptyPriorityConfig(): PriorityConfig {
     order: [],
     unlisted: "low",
     resultTypes: {},
-    matching: { mode: DEFAULT_MATCH_MODE },
+    matching: { ...DEFAULT_MATCH_OPTIONS },
   };
 }
 
@@ -113,20 +115,43 @@ export function parsePriorityConfig(
     order,
     unlisted: "low",
     resultTypes: parseResultTypeBoosts(parsed.resultTypes),
-    matching: { mode: parseMatchMode(parsed.matching) },
+    matching: parseMatching(parsed.matching),
   };
 }
 
-function parseMatchMode(raw: unknown): MatchMode {
-  if (isRecord(raw) && MATCH_MODES.includes(raw.mode as MatchMode)) {
-    return raw.mode as MatchMode;
-  }
-  return DEFAULT_MATCH_MODE;
+function clampInt(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, Math.round(value)));
 }
 
-/** The query-matching mode in effect for this config. */
-export function getMatchMode(config: PriorityConfig): MatchMode {
-  return config.matching?.mode ?? DEFAULT_MATCH_MODE;
+function parseMatching(raw: unknown): MatchOptions {
+  const options: MatchOptions = { ...DEFAULT_MATCH_OPTIONS };
+  if (!isRecord(raw)) {
+    return options;
+  }
+  if (
+    typeof raw.mode === "string" &&
+    (MATCH_MODES as readonly string[]).includes(raw.mode)
+  ) {
+    options.mode = raw.mode as MatchOptions["mode"];
+  }
+  if (
+    typeof raw.typoDistance === "number" &&
+    Number.isFinite(raw.typoDistance)
+  ) {
+    options.typoDistance = clampInt(raw.typoDistance, 0, 3);
+  }
+  if (
+    typeof raw.minTokenLength === "number" &&
+    Number.isFinite(raw.minTokenLength)
+  ) {
+    options.minTokenLength = clampInt(raw.minTokenLength, 1, 32);
+  }
+  return options;
+}
+
+/** The query-matching options in effect for this config. */
+export function getMatchOptions(config: PriorityConfig): MatchOptions {
+  return config.matching ?? { ...DEFAULT_MATCH_OPTIONS };
 }
 
 function parseResultTypeBoosts(raw: unknown): ResultTypeBoosts {
@@ -307,6 +332,6 @@ export function buildPriorityTemplate(
     order,
     unlisted: "low",
     resultTypes: {},
-    matching: { mode: DEFAULT_MATCH_MODE },
+    matching: { ...DEFAULT_MATCH_OPTIONS },
   });
 }
