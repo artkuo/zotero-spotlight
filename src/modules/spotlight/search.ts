@@ -948,15 +948,19 @@ function isSearchableAttachment(item: Zotero.Item): boolean {
   ) {
     return false;
   }
+  // Only attachments backed by locally stored content (PDFs, EPUBs,
+  // snapshots) should appear in results or stand in for their parent
+  // item. Linked web URLs (e.g. PubMed query links) are just pointers,
+  // so the parent reference is indexed instead.
   if (typeof candidate.isFileAttachment === "function") {
-    if (candidate.isFileAttachment()) {
-      return true;
-    }
+    return candidate.isFileAttachment();
   }
-  if (typeof candidate.isWebAttachment === "function") {
-    if (candidate.isWebAttachment()) {
-      return true;
-    }
+  // Fallback for older APIs without isFileAttachment().
+  if (
+    typeof candidate.isWebAttachment === "function" &&
+    candidate.isWebAttachment()
+  ) {
+    return false;
   }
   const contentType =
     candidate.attachmentContentType || candidate.attachmentMIMEType;
