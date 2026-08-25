@@ -3968,6 +3968,9 @@ export class PaletteUI {
     if (type === "snapshot") {
       return "SNAPSHOT";
     }
+    if (type === "link") {
+      return "LINK";
+    }
     if (type === "annotation") {
       return "ANNO";
     }
@@ -3988,6 +3991,9 @@ export class PaletteUI {
     }
     if (type === "snapshot") {
       return "Open Snapshot";
+    }
+    if (type === "link") {
+      return "Open Link";
     }
     return "Open";
   }
