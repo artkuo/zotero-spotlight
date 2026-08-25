@@ -29,8 +29,12 @@ pref-search-section = 搜索
 pref-search-annotations = 搜索批注
 pref-restore-search = 重新打开 Spotlight 时恢复上一次搜索
 pref-show-filter-hint-bar = 显示过滤提示栏
-pref-priority-section = 图书馆与分类优先级
-pref-priority-hint = 粘贴用于排序图书馆和分类的 JSON。在命令模式（Cmd/Ctrl+Shift+P）中运行“Copy Collection Priorities Template”可获取现成列表，然后删除不需要的行并调整行的顺序来设置优先级（越靠前优先级越高）。未列出的分类仍会被搜索，但排名较低。可选地添加 "resultTypes": {"item": 16, "pdf": 12, "note": 1} 将条目类型划分为严格的层级——数值更高的类型始终排在数值更低的类型之上；数值相同的类型按匹配质量排序。有效键：item、note、pdf、epub、snapshot、annotation。
-pref-priority-status-valid = 已保存。新的搜索将使用这些优先级。
+pref-priority-section = 默认搜索范围
+pref-priority-hint = 选择默认搜索哪些图书馆。未勾选的图书馆不会出现在结果中，但您仍可在搜索中访问全部内容——`:col 关键词` 始终搜索所有图书馆中的全部分类。也可以让未勾选的图书馆保持可搜索但排名较低。
+pref-priority-libraries-label = 默认搜索的图书馆
+pref-priority-unlisted = 未选中的图书馆仍可搜索，但优先级较低
+pref-priority-tiers-label = 结果类型层级（1 = 最高）
+pref-priority-advanced = 高级：直接编辑 JSON
+pref-priority-status-valid = 已保存。新的搜索将使用这些设置。
 pref-priority-status-invalid = JSON 无效——更改未保存。
 pref-reset-defaults = 恢复默认设置
