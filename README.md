@@ -64,18 +64,18 @@ also be disabled.
 
 ### 2. Search Syntax
 
-| Syntax                                                        | Purpose                                     | Example                   |
-| ------------------------------------------------------------- | ------------------------------------------- | ------------------------- |
-| Plain text                                                    | Fuzzy-search item metadata                  | `attention transformer`   |
-| `:pdf`, `:epub`, `:snapshot`, `:note`, `:item`, `:annotation` | Restrict result type                        | `:pdf neural`             |
-| `#tag`                                                        | Require a Zotero tag                        | `#methods regression`     |
-| `y:`                                                          | Match an exact year, range, or comparison   | `y:2020-2024`, `y:>=2022` |
-| `@query`                                                      | Search annotations only                     | `@limitations`            |
-| `=phrase`                                                     | Search indexed PDF text for an exact phrase | `=attention mechanism`    |
-| `:queue`                                                      | Show papers in the synced Reading Queue     | `:queue :pdf y:>=2024`    |
-| `:col query`                                                  | Search collections and group libraries only | `:col machine learning`   |
-| `>query`                                                      | Search commands                             | `>copy citation`          |
-| `>tabs`                                                       | List open Zotero tabs                       | `>tabs`                   |
+| Syntax                                                                 | Purpose                                     | Example                   |
+| ---------------------------------------------------------------------- | ------------------------------------------- | ------------------------- |
+| Plain text                                                             | Search item metadata word-by-word           | `attention transformer`   |
+| `:pdf`, `:epub`, `:snapshot`, `:note`, `:item`, `:annotation`, `:link` | Restrict result type                        | `:pdf neural`             |
+| `#tag`                                                                 | Require a Zotero tag                        | `#methods regression`     |
+| `y:`                                                                   | Match an exact year, range, or comparison   | `y:2020-2024`, `y:>=2022` |
+| `@query`                                                               | Search annotations only                     | `@limitations`            |
+| `=phrase`                                                              | Search indexed PDF text for an exact phrase | `=attention mechanism`    |
+| `:queue`                                                               | Show papers in the synced Reading Queue     | `:queue :pdf y:>=2024`    |
+| `:col query`                                                           | Search collections and group libraries only | `:col machine learning`   |
+| `>query`                                                               | Search commands                             | `>copy citation`          |
+| `>tabs`                                                                | List open Zotero tabs                       | `>tabs`                   |
 
 Normal item filters can be combined. A clickable hint bar exposes the available
 syntax, while inline autocomplete completes colon and year filters. Collection
@@ -113,6 +113,47 @@ results.
 - Enable or disable annotation search, restoration of the previous query, and the filter hint bar.
 - Reset all Spotlight preferences to their defaults in one click.
 - Open the built-in shortcut guide with `Cmd/Ctrl+/` to see Spotlight controls, frequent Zotero shortcuts, available command shortcuts, and shortcuts contributed by other plugins or the active window.
+
+### 7. Library & Collection Priorities
+
+Available on the `feat/collection-priority` branch.
+
+- Rank your libraries (My Library and group libraries) and collections so the results you care about surface first — e.g. prioritize your lab's group library when writing manuscripts.
+- Configuration lives in a single JSON pref editable in Preferences → Spotlight, with a status line that validates your changes.
+- Run `>copy collection priorities template` from command mode to get a ready-made, pre-filled JSON listing every library and collection; delete lines you don't want and reorder lines to set priority (top = highest).
+- Items in unlisted collections stay searchable but rank lower; items never leave their library, so library ranking is clean.
+- Sort result types into strict tiers with `"resultTypes": {"item": 16, "pdf": 12, "note": 1}` — any type ranked higher always appears above one ranked lower; equal or missing values fall back to match quality. Valid keys: `item`, `note`, `pdf`, `epub`, `snapshot`, `annotation`, `link`.
+- The "Search current collection" option still applies as before and takes precedence when active.
+
+Example configuration:
+
+```json
+{
+  "order": [
+    { "type": "library", "libraryID": 281631, "name": "Manuscript Lab" },
+    {
+      "type": "collection",
+      "libraryID": 281631,
+      "key": "ABCD1234",
+      "name": "Lab › R01 drafts"
+    },
+    { "type": "library", "libraryID": 1, "name": "My Library" }
+  ],
+  "unlisted": "low",
+  "resultTypes": { "item": 16, "pdf": 12 }
+}
+```
+
+### 8. Precise Word-Based Matching and Link Results
+
+Available on the `feat/per-field-matching` branch.
+
+- Queries match **whole words inside individual fields** (title, authors, tags, abstract) instead of fuzzy letter sequences scattered across a record, eliminating phantom matches that share no visible text.
+- Minor typos are still tolerated: words of four or more characters match with an edit distance of one (`machien` → _machine_), while short queries like author initials must be exact.
+- All query words must be found (**AND** semantics), making multi-word searches precise.
+- Tune the behavior with `"matching": {"mode": "field", "typoDistance": 1, "minTokenLength": 4}`; set `typoDistance` to `0` for exact-word matching or `mode` to `"loose"` for the previous whole-record fuzzy behavior.
+- Web links are their own `link` result category with a `LINK` badge: standalone links match on their own title/URL/tags, links attached to a paper also inherit its metadata so author names find them, and both can be demoted via tiers or filtered with `:link`.
+- Only attachments backed by locally stored content (PDFs, EPUBs, snapshots) represent their parent item in results; clicking through always lands on something meaningful.
 
 ## Contributing
 
