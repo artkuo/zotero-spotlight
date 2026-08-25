@@ -581,30 +581,43 @@ async function buildBaseIndex(): Promise<IndexedEntry[]> {
               abstractSnippet,
             ),
           });
-        } else if (isStandaloneLinkedUrl(item)) {
-          // Top-level linked web URLs: searchable on their own metadata
-          // only, in their own 'link' category.
+        } else if (isLinkedUrlAttachment(item)) {
+          // Linked web URLs are indexed in their own 'link' category.
+          // They inherit parent metadata when attached to a reference,
+          // so e.g. an author name matches the paper's web link too;
+          // users can demote the category via resultTypes tiers.
+          const parent = getAttachmentParentItem(item);
           const title = getAttachmentTitle(item);
-          const tags = getItemTags(item);
+          const subtitle = parent ? getAttachmentSubtitle(item) : "Link";
+          const authors = parent ? getItemAuthors(parent) : "";
+          const attachmentTags = getItemTags(item);
+          const parentTags = parent ? getItemTags(parent) : [];
+          const tags = [...attachmentTags, ...parentTags].filter(Boolean);
+          const abstractSnippet = parent ? getItemAbstractSnippet(parent) : "";
           const url = safeGetUrl(item);
           entries.push({
             id: item.id,
             kind: "attachment",
             resultType: "link",
             title,
-            subtitle: "Link",
-            authors: "",
+            subtitle,
+            authors,
             tags,
-            abstractSnippet: "",
-            year: null,
+            abstractSnippet,
+            year: parent ? getAttachmentYearNumber(item) : null,
             libraryID: library.libraryID,
             libraryKind,
-            collectionIDs: [],
-            searchText: normalize(`${title} ${url} ${tags.join(" ")}`),
+            collectionIDs: parent !== null ? getCollectionIDs(parent.id) : [],
+            searchText: normalize(
+              `${title} ${subtitle} ${authors} ${url} ${tags.join(" ")} ${abstractSnippet}`,
+            ),
             searchFields: [
               normalize(title),
+              normalize(subtitle),
               normalize(url),
+              normalize(authors),
               ...tags.map((tag) => normalize(tag)),
+              normalize(abstractSnippet),
             ].filter(Boolean),
           });
         }
@@ -927,9 +940,9 @@ function buildSearchFields(
   ].filter(Boolean);
 }
 
-/** Top-level linked web URL (a pointer, not stored content, no parent). */
-function isStandaloneLinkedUrl(item: Zotero.Item): boolean {
-  if (!item.isAttachment() || getParentItem(item)) {
+/** Linked web URL attachment (a pointer, not locally stored content). */
+function isLinkedUrlAttachment(item: Zotero.Item): boolean {
+  if (!item.isAttachment()) {
     return false;
   }
   if (typeof item.isAnnotation === "function" && item.isAnnotation()) {
