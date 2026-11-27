@@ -22,6 +22,9 @@ declare namespace _ZoteroTypes {
       "unselectedLibraries": string;
       "unselectedLibraryMode": string;
       "resultTypePriorities": string;
+      "matchMode": string;
+      "matchTypoTolerance": number;
+      "matchMinTypoWordLength": number;
     };
   }
 }

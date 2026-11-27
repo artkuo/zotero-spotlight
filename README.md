@@ -75,6 +75,7 @@ to another Spotlight action swaps the assignments.
 - Rank results using text relevance, active-library scope, recency, and usage frequency.
 - Optionally rank result types in Preferences so preferred types appear first.
 - Identify result types, group-library content, open tabs, reading-queue items, and the best attachment from compact badges.
+- Optionally switch to a precise word-matching mode in Preferences for stricter, word-aware matching.
 
 ### 2. Search Syntax
 
@@ -138,6 +139,26 @@ results.
 - Type filters such as `:pdf` still narrow results as before.
 
 For example, with PDFs at 1 and Items at 2, a search lists matching PDFs first, then items, then notes, EPUBs, snapshots and links mixed by relevance.
+
+### 8. Precise Matching
+
+Precise matching is off by default; the default fuzzy mode is unchanged.
+
+- Words are runs of letters and digits; punctuation separates words; case is ignored.
+- Every query word must match a word in title, authors, tags, abstract, or other indexed field (AND). Different words may match different fields; word order doesn't matter; one word never matches across two fields.
+- A query word matches a whole word, the start of a word (2+ letters), or part of a word (3+ letters), in that order of preference.
+- Typos: up to the tolerance in edits (insert, delete, change, or swap two neighbouring letters), only for words at least the minimum length (default 4). Shorter words must be spelled exactly.
+- Queries containing Chinese, Japanese, or Korean characters keep the script-aware matching.
+
+| Query        | Title word        | Matches? | Why                                                   |
+| ------------ | ----------------- | -------- | ----------------------------------------------------- |
+| `model`      | `Model`           | Yes      | Exact whole-word match, case ignored.                 |
+| `neuro`      | `Neuroscience`    | Yes      | Prefix match with 2+ query letters.                   |
+| `graph`      | `Photographic`    | Yes      | Part-of-word match with 3+ query letters.             |
+| `attntion`   | `Attention`       | Yes      | One edit away within the typo tolerance.              |
+| `kou`        | `Kuo`             | No       | A typo in a word shorter than the minimum length (4). |
+| `a`          | `A`               | Yes      | One-letter words must match exactly.                  |
+| `deep learn` | `Learning Deeply` | Yes      | Every query word matches; order does not matter.      |
 
 ## Contributing
 

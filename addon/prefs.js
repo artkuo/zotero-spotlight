@@ -13,3 +13,6 @@ pref("resultsLimit", 20);
 pref("unselectedLibraries", "");
 pref("unselectedLibraryMode", "exclude");
 pref("resultTypePriorities", "");
+pref("matchMode", "fuzzy");
+pref("matchTypoTolerance", 1);
+pref("matchMinTypoWordLength", 4);
