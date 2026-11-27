@@ -15,6 +15,11 @@ import {
   parseResultTypePriorities,
 } from "./resultTypePriority";
 import { scoreSearchText } from "./textMatching";
+import {
+  getLibraryScope,
+  getLibraryTier,
+  isLibraryExcluded,
+} from "./libraryScope";
 
 export type QuickOpenResult = ItemResult | AttachmentResult | AnnotationResult;
 
@@ -140,6 +145,7 @@ export class SearchService {
 
     const parsedQuery = parseStructuredQuery(query);
     const activeLibraryID = this.getActiveLibraryID(win);
+    const libraryScope = getLibraryScope();
     await this.ensureBaseIndex();
     const searchAnnotations = shouldSearchAnnotations(parsedQuery);
     if (searchAnnotations) {
@@ -162,11 +168,21 @@ export class SearchService {
     }
 
     const results: QuickOpenResult[] = [];
+    const libraryTiers = new Map<QuickOpenResult, number>();
     const searchableEntries = searchAnnotations
       ? [...this.baseIndex, ...this.annotationIndex]
       : this.baseIndex;
     for (const entry of searchableEntries) {
       if (!matchesFilters(entry, parsedQuery.filters)) {
+        continue;
+      }
+      if (
+        isLibraryExcluded(
+          libraryScope,
+          entry.libraryID,
+          collectionItemIDs !== null,
+        )
+      ) {
         continue;
       }
       // Collection filter
@@ -220,6 +236,10 @@ export class SearchService {
           abstractSnippet: entry.abstractSnippet || undefined,
         } as QuickOpenResult);
       }
+      libraryTiers.set(
+        results[results.length - 1],
+        getLibraryTier(libraryScope, entry.libraryID),
+      );
     }
 
     const kindOrder = (r: QuickOpenResult) => {
@@ -237,6 +257,9 @@ export class SearchService {
     const sorted = results.sort((a, b) => {
       const kindDiff = kindOrder(a) - kindOrder(b);
       if (kindDiff !== 0) return kindDiff;
+      // Unselected libraries kept searchable sort after selected ones.
+      const tierDiff = (libraryTiers.get(a) ?? 0) - (libraryTiers.get(b) ?? 0);
+      if (tierDiff !== 0) return tierDiff;
       const typeDiff = compareResultTypePriority(typePriorities, a, b);
       if (typeDiff !== 0) return typeDiff;
       return b.score - a.score;
@@ -348,12 +371,24 @@ export class SearchService {
       typeof collectionFilter?.libraryID === "number"
         ? collectionFilter.libraryID
         : null;
+    // Results are listed library by library, so sorting libraries by tier
+    // puts unselected libraries kept searchable after selected ones.
+    const libraryScope = getLibraryScope();
     const libraries =
       collectionLibraryID !== null
         ? Zotero.Libraries.getAll().filter(
             (library) => library.libraryID === collectionLibraryID,
           )
-        : Zotero.Libraries.getAll();
+        : Zotero.Libraries.getAll()
+            .filter(
+              (library) =>
+                !isLibraryExcluded(libraryScope, library.libraryID, false),
+            )
+            .sort(
+              (a, b) =>
+                getLibraryTier(libraryScope, a.libraryID) -
+                getLibraryTier(libraryScope, b.libraryID),
+            );
 
     for (const library of libraries) {
       try {
