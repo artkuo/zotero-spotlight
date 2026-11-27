@@ -1,3 +1,21 @@
+> **This is a fork of [royshare/zotero-spotlight](https://github.com/royshare/zotero-spotlight/project).** All credit for the original work goes to royshare; please use the original unless testing the changes below.
+>
+> This fork exists to make pending pull requests easy to test:
+>
+> \- [#73](https://github.com/Royshare/zotero-spotlight/pull/73) feat(search): make linked web attachments searchable and distinct
+>
+> \- [#74](https://github.com/Royshare/zotero-spotlight/pull/74) feat(search): choose libraries included in default search
+>
+> \- [#75](https://github.com/Royshare/zotero-spotlight/pull/75) feat(search): add an opt-in precise matching mode
+>
+> \- [#76](https://github.com/Royshare/zotero-spotlight/pull/76) Feat/result type priority
+>
+> \- One more update not yet in PR Change settings dropdown menus from html-\>Zotero (due to conflicts I experienced with other Zotero plugins)
+>
+> Download the [release](https://github.com/artkuo/zotero-spotlight/releases) .xpi for testing of all of the above at once
+>
+> Once merged upstream, these changes will be dropped here. Report issues with the fork's changes here, everything else upstream.
+ 
 <h1><img src="addon/content/icons/favicon.png" width="36" valign="middle" alt=""> Zotero Spotlight</h1>
 
 [![zotero target version](https://img.shields.io/badge/Zotero-7%2F8%2F9%2F10-green?style=flat-square&logo=zotero&logoColor=CC2936)](https://www.zotero.org)
