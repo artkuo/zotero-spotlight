@@ -42,13 +42,13 @@ function syncPrefUI() {
   const doc = addon.data.prefs.window.document;
   const searchShortcutSelect = doc.querySelector(
     `#zotero-prefpane-${config.addonRef}-search-shortcut`,
-  ) as HTMLSelectElement | null;
+  ) as XULMenuListElement | null;
   const commandShortcutSelect = doc.querySelector(
     `#zotero-prefpane-${config.addonRef}-command-shortcut`,
-  ) as HTMLSelectElement | null;
+  ) as XULMenuListElement | null;
   const guideShortcutSelect = doc.querySelector(
     `#zotero-prefpane-${config.addonRef}-guide-shortcut`,
-  ) as HTMLSelectElement | null;
+  ) as XULMenuListElement | null;
   if (searchShortcutSelect && commandShortcutSelect && guideShortcutSelect) {
     const shortcuts = getConfiguredShortcuts();
     searchShortcutSelect.value = shortcuts.search;
@@ -57,7 +57,7 @@ function syncPrefUI() {
   }
   const enterActionSelect = doc.querySelector(
     `#zotero-prefpane-${config.addonRef}-enter-action`,
-  ) as HTMLSelectElement | null;
+  ) as XULMenuListElement | null;
   if (enterActionSelect) {
     enterActionSelect.value = resolveModifiedEnterAction(
       getPref("enterAction"),
@@ -66,7 +66,7 @@ function syncPrefUI() {
   }
   const modifierEnterActionSelect = doc.querySelector(
     `#zotero-prefpane-${config.addonRef}-modifier-enter-action`,
-  ) as HTMLSelectElement | null;
+  ) as XULMenuListElement | null;
   if (modifierEnterActionSelect) {
     modifierEnterActionSelect.value = resolveModifiedEnterAction(
       getPref("modifierEnterAction"),
@@ -75,7 +75,7 @@ function syncPrefUI() {
   }
   const shiftEnterActionSelect = doc.querySelector(
     `#zotero-prefpane-${config.addonRef}-shift-enter-action`,
-  ) as HTMLSelectElement | null;
+  ) as XULMenuListElement | null;
   if (shiftEnterActionSelect) {
     shiftEnterActionSelect.value = resolveModifiedEnterAction(
       getPref("shiftEnterAction"),
@@ -84,7 +84,7 @@ function syncPrefUI() {
   }
   const altEnterActionSelect = doc.querySelector(
     `#zotero-prefpane-${config.addonRef}-alt-enter-action`,
-  ) as HTMLSelectElement | null;
+  ) as XULMenuListElement | null;
   if (altEnterActionSelect) {
     altEnterActionSelect.value = resolveModifiedEnterAction(
       getPref("altEnterAction"),
@@ -93,7 +93,7 @@ function syncPrefUI() {
   }
   const modifierShiftEnterActionSelect = doc.querySelector(
     `#zotero-prefpane-${config.addonRef}-modifier-shift-enter-action`,
-  ) as HTMLSelectElement | null;
+  ) as XULMenuListElement | null;
   if (modifierShiftEnterActionSelect) {
     modifierShiftEnterActionSelect.value = resolveModifiedEnterAction(
       getPref("modifierShiftEnterAction"),
@@ -102,7 +102,7 @@ function syncPrefUI() {
   }
   const modifierAltEnterActionSelect = doc.querySelector(
     `#zotero-prefpane-${config.addonRef}-modifier-alt-enter-action`,
-  ) as HTMLSelectElement | null;
+  ) as XULMenuListElement | null;
   if (modifierAltEnterActionSelect) {
     modifierAltEnterActionSelect.value = resolveModifiedEnterAction(
       getPref("modifierAltEnterAction"),
@@ -155,10 +155,10 @@ function syncPrefUI() {
   }
   const matchModeSelect = doc.querySelector(
     `#zotero-prefpane-${config.addonRef}-matching-mode`,
-  ) as HTMLSelectElement | null;
+  ) as XULMenuListElement | null;
   const matchTypoToleranceSelect = doc.querySelector(
     `#zotero-prefpane-${config.addonRef}-matching-typo-tolerance`,
-  ) as HTMLSelectElement | null;
+  ) as XULMenuListElement | null;
   const matchMinTypoWordLengthInput = doc.querySelector(
     `#zotero-prefpane-${config.addonRef}-matching-min-typo-word-length`,
   ) as HTMLInputElement | null;
@@ -244,13 +244,13 @@ function bindPrefEvents() {
   const doc = addon.data.prefs.window.document;
   const searchShortcutSelect = doc.querySelector(
     `#zotero-prefpane-${config.addonRef}-search-shortcut`,
-  ) as HTMLSelectElement | null;
+  ) as XULMenuListElement | null;
   const commandShortcutSelect = doc.querySelector(
     `#zotero-prefpane-${config.addonRef}-command-shortcut`,
-  ) as HTMLSelectElement | null;
+  ) as XULMenuListElement | null;
   const guideShortcutSelect = doc.querySelector(
     `#zotero-prefpane-${config.addonRef}-guide-shortcut`,
-  ) as HTMLSelectElement | null;
+  ) as XULMenuListElement | null;
   bindShortcutEvents(
     searchShortcutSelect,
     commandShortcutSelect,
@@ -258,8 +258,8 @@ function bindPrefEvents() {
   );
   const enterActionSelect = doc.querySelector(
     `#zotero-prefpane-${config.addonRef}-enter-action`,
-  ) as HTMLSelectElement | null;
-  enterActionSelect?.addEventListener("change", () => {
+  ) as XULMenuListElement | null;
+  enterActionSelect?.addEventListener("command", () => {
     setPref(
       "enterAction",
       resolveModifiedEnterAction(enterActionSelect.value, "open"),
@@ -267,8 +267,8 @@ function bindPrefEvents() {
   });
   const modifierEnterActionSelect = doc.querySelector(
     `#zotero-prefpane-${config.addonRef}-modifier-enter-action`,
-  ) as HTMLSelectElement | null;
-  modifierEnterActionSelect?.addEventListener("change", () => {
+  ) as XULMenuListElement | null;
+  modifierEnterActionSelect?.addEventListener("command", () => {
     setPref(
       "modifierEnterAction",
       resolveModifiedEnterAction(modifierEnterActionSelect.value, "reveal"),
@@ -276,8 +276,8 @@ function bindPrefEvents() {
   });
   const shiftEnterActionSelect = doc.querySelector(
     `#zotero-prefpane-${config.addonRef}-shift-enter-action`,
-  ) as HTMLSelectElement | null;
-  shiftEnterActionSelect?.addEventListener("change", () => {
+  ) as XULMenuListElement | null;
+  shiftEnterActionSelect?.addEventListener("command", () => {
     setPref(
       "shiftEnterAction",
       resolveModifiedEnterAction(shiftEnterActionSelect.value, "alternate"),
@@ -285,8 +285,8 @@ function bindPrefEvents() {
   });
   const altEnterActionSelect = doc.querySelector(
     `#zotero-prefpane-${config.addonRef}-alt-enter-action`,
-  ) as HTMLSelectElement | null;
-  altEnterActionSelect?.addEventListener("change", () => {
+  ) as XULMenuListElement | null;
+  altEnterActionSelect?.addEventListener("command", () => {
     setPref(
       "altEnterAction",
       resolveModifiedEnterAction(altEnterActionSelect.value, "open"),
@@ -294,8 +294,8 @@ function bindPrefEvents() {
   });
   const modifierShiftEnterActionSelect = doc.querySelector(
     `#zotero-prefpane-${config.addonRef}-modifier-shift-enter-action`,
-  ) as HTMLSelectElement | null;
-  modifierShiftEnterActionSelect?.addEventListener("change", () => {
+  ) as XULMenuListElement | null;
+  modifierShiftEnterActionSelect?.addEventListener("command", () => {
     setPref(
       "modifierShiftEnterAction",
       resolveModifiedEnterAction(
@@ -306,8 +306,8 @@ function bindPrefEvents() {
   });
   const modifierAltEnterActionSelect = doc.querySelector(
     `#zotero-prefpane-${config.addonRef}-modifier-alt-enter-action`,
-  ) as HTMLSelectElement | null;
-  modifierAltEnterActionSelect?.addEventListener("change", () => {
+  ) as XULMenuListElement | null;
+  modifierAltEnterActionSelect?.addEventListener("command", () => {
     setPref(
       "modifierAltEnterAction",
       resolveModifiedEnterAction(modifierAltEnterActionSelect.value, "reveal"),
@@ -357,19 +357,19 @@ function bindPrefEvents() {
   });
   const matchModeSelect = doc.querySelector(
     `#zotero-prefpane-${config.addonRef}-matching-mode`,
-  ) as HTMLSelectElement | null;
+  ) as XULMenuListElement | null;
   const matchTypoToleranceSelect = doc.querySelector(
     `#zotero-prefpane-${config.addonRef}-matching-typo-tolerance`,
-  ) as HTMLSelectElement | null;
+  ) as XULMenuListElement | null;
   const matchMinTypoWordLengthInput = doc.querySelector(
     `#zotero-prefpane-${config.addonRef}-matching-min-typo-word-length`,
   ) as HTMLInputElement | null;
   // createMatchOptions validates and clamps each value before it is saved.
-  matchModeSelect?.addEventListener("change", () => {
+  matchModeSelect?.addEventListener("command", () => {
     setPref("matchMode", createMatchOptions(matchModeSelect.value, 0, 0).mode);
     syncPrefUI();
   });
-  matchTypoToleranceSelect?.addEventListener("change", () => {
+  matchTypoToleranceSelect?.addEventListener("command", () => {
     const { typoTolerance } = createMatchOptions(
       "fuzzy",
       Number(matchTypoToleranceSelect.value),
@@ -454,10 +454,10 @@ function getConfiguredMatchOptions() {
 function getResultTypePrioritySelect(
   doc: Document,
   type: RankableResultType,
-): HTMLSelectElement | null {
+): XULMenuListElement | null {
   return doc.querySelector(
     `#zotero-prefpane-${config.addonRef}-type-priority-${type}`,
-  ) as HTMLSelectElement | null;
+  ) as XULMenuListElement | null;
 }
 
 function syncResultTypePriorityUI(doc: Document) {
@@ -472,7 +472,7 @@ function syncResultTypePriorityUI(doc: Document) {
 
 function bindResultTypePriorityEvents(doc: Document) {
   for (const type of RANKABLE_RESULT_TYPES) {
-    getResultTypePrioritySelect(doc, type)?.addEventListener("change", () => {
+    getResultTypePrioritySelect(doc, type)?.addEventListener("command", () => {
       // The serializer drops "" (not prioritized) and any invalid rank.
       const priorities: ResultTypePriorities = {};
       for (const other of RANKABLE_RESULT_TYPES) {
@@ -503,9 +503,9 @@ function getConfiguredGuideShortcut() {
 }
 
 function bindShortcutEvents(
-  searchSelect: HTMLSelectElement | null,
-  commandSelect: HTMLSelectElement | null,
-  guideSelect: HTMLSelectElement | null,
+  searchSelect: XULMenuListElement | null,
+  commandSelect: XULMenuListElement | null,
+  guideSelect: XULMenuListElement | null,
 ) {
   if (!searchSelect || !commandSelect || !guideSelect) {
     return;
@@ -524,19 +524,19 @@ function bindShortcutEvents(
     setPref("guideShortcut", guide);
   };
 
-  searchSelect.addEventListener("change", () => {
+  searchSelect.addEventListener("command", () => {
     applyShortcuts(
       assignSpotlightShortcut(configured, "search", searchSelect.value),
     );
   });
 
-  commandSelect.addEventListener("change", () => {
+  commandSelect.addEventListener("command", () => {
     applyShortcuts(
       assignSpotlightShortcut(configured, "command", commandSelect.value),
     );
   });
 
-  guideSelect.addEventListener("change", () => {
+  guideSelect.addEventListener("command", () => {
     const next = assignGuideShortcut(configured, guide, guideSelect.value);
     configured = next.config;
     guide = next.guide;

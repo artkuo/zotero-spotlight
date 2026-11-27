@@ -1,32 +1,39 @@
 pref-shortcut-section = 快捷键
 pref-shortcut-search-label = 打开 Spotlight 搜索
 pref-shortcut-command-label = 打开命令模式
-pref-shortcut-mod-p = { PLATFORM() ->
-        [macos] ⌘+P
-       *[other] Ctrl+P
-    }
-pref-shortcut-mod-shift-p = { PLATFORM() ->
-        [macos] ⌘+⇧+P
-       *[other] Ctrl+Shift+P
-    }
-pref-shortcut-mod-k = { PLATFORM() ->
-        [macos] ⌘+K
-       *[other] Ctrl+K
-    }
-pref-shortcut-mod-o = { PLATFORM() ->
-        [macos] ⌘+O
-       *[other] Ctrl+O
-    }
-pref-shortcut-mod-j = { PLATFORM() ->
-        [macos] ⌘+J
-       *[other] Ctrl+J
-    }
-pref-shortcut-mod-slash = { PLATFORM() ->
-        [macos] ⌘+/
-       *[other] Ctrl+/
-    }
+pref-shortcut-mod-p =
+    .label = { PLATFORM() ->
+            [macos] ⌘+P
+           *[other] Ctrl+P
+        }
+pref-shortcut-mod-shift-p =
+    .label = { PLATFORM() ->
+            [macos] ⌘+⇧+P
+           *[other] Ctrl+Shift+P
+        }
+pref-shortcut-mod-k =
+    .label = { PLATFORM() ->
+            [macos] ⌘+K
+           *[other] Ctrl+K
+        }
+pref-shortcut-mod-o =
+    .label = { PLATFORM() ->
+            [macos] ⌘+O
+           *[other] Ctrl+O
+        }
+pref-shortcut-mod-j =
+    .label = { PLATFORM() ->
+            [macos] ⌘+J
+           *[other] Ctrl+J
+        }
+pref-shortcut-mod-slash =
+    .label = { PLATFORM() ->
+            [macos] ⌘+/
+           *[other] Ctrl+/
+        }
 pref-shortcut-guide-label = 打开快捷键指南
-pref-shortcut-off = 关闭
+pref-shortcut-off =
+    .label = 关闭
 pref-shortcut-conflict-note = 选择已在使用的快捷键时，快捷键分配会自动交换。
 pref-result-actions-section = 结果操作
 pref-enter-action-label = Enter
@@ -47,13 +54,20 @@ pref-modifier-alt-enter-action-label = { PLATFORM() ->
         [macos] ⌘+Option+Enter
        *[other] Ctrl+Alt+Enter
     }
-pref-action-open = 打开结果
-pref-action-reveal = 在文献库中定位
-pref-action-alternate = 在新窗口中打开
-pref-action-open-attachment = 打开附件
-pref-action-copy-citation = 复制引文
-pref-action-copy-bibliography = 复制参考文献
-pref-action-copy-content = 复制内容
+pref-action-open =
+    .label = 打开结果
+pref-action-reveal =
+    .label = 在文献库中定位
+pref-action-alternate =
+    .label = 在新窗口中打开
+pref-action-open-attachment =
+    .label = 打开附件
+pref-action-copy-citation =
+    .label = 复制引文
+pref-action-copy-bibliography =
+    .label = 复制参考文献
+pref-action-copy-content =
+    .label = 复制内容
 pref-result-actions-note = 当前结果不支持所选操作时，将改为打开结果。
 pref-results-section = 结果限制
 pref-results-limit = 结果数量上限
@@ -70,7 +84,8 @@ pref-library-scope-hint = 选择普通搜索包含哪些文库。在当前分类
 pref-library-scope-lower = 未选中的文库仍可搜索，排在已选文库之后
 pref-result-order-section = 结果排序
 pref-result-order-hint = 为结果类型设置优先级，使其优先显示。具有相同优先级的类型以及未设置优先级的类型将保持其相关性排序。批注始终保留在独立的分区中。
-pref-type-priority-not-prioritized = 不优先
+pref-type-priority-not-prioritized =
+    .label = 不优先
 pref-type-priority-item-label = 条目
 pref-type-priority-note-label = 笔记
 pref-type-priority-pdf-label = PDF
@@ -80,11 +95,16 @@ pref-type-priority-link-label = 链接
 pref-matching-section = 词语匹配
 pref-matching-hint = 选择 Spotlight 如何匹配查询词。模糊模式保持默认行为。精确模式要求每个查询词都匹配索引字段中的某个词。
 pref-matching-mode-label = 匹配模式
-pref-matching-mode-fuzzy = 模糊（默认）
-pref-matching-mode-precise = 精确词语
+pref-matching-mode-fuzzy =
+    .label = 模糊（默认）
+pref-matching-mode-precise =
+    .label = 精确词语
 pref-matching-typo-tolerance-label = 拼写容错
-pref-matching-typo-off = 关闭
-pref-matching-typo-1 = 1 次编辑
-pref-matching-typo-2 = 2 次编辑
+pref-matching-typo-off =
+    .label = 关闭
+pref-matching-typo-1 =
+    .label = 1 次编辑
+pref-matching-typo-2 =
+    .label = 2 次编辑
 pref-matching-min-typo-word-length-label = 允许拼写容错的最短词长
 pref-reset-defaults = 恢复默认设置
